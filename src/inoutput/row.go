@@ -2,8 +2,10 @@ package inoutput
 
 import (
 	"config"
+	"context"
 	"fmt"
 	"github.com/go-ozzo/ozzo-dbx"
+	"github.com/olivere/elastic"
 	"log"
 	"strconv"
 	"time"
@@ -11,6 +13,8 @@ import (
 
 var cfg *config.Config
 var db *dbx.DB
+var esClient *elastic.Client
+var ctx context.Context
 
 func init() {
 	cfg = config.NewConfig()
@@ -20,31 +24,65 @@ func init() {
 	if err != nil {
 		log.Panicln("Open database error: " + err.Error())
 	}
+
+	var options []elastic.ClientOptionFunc
+	if len(cfg.ES.Urls) > 0 {
+		options = append(options, elastic.SetURL(cfg.ES.Urls...))
+	}
+	if len(cfg.ES.BaseAuth.Username) > 0 && len(cfg.ES.BaseAuth.Password) > 0 {
+		options = append(options, elastic.SetBasicAuth(cfg.ES.BaseAuth.Username, cfg.ES.BaseAuth.Password))
+	}
+	esClient, err = elastic.NewClient(options...)
+	if err != nil {
+		log.Panicln(err)
+	}
+
+	ctx = context.Background()
 }
 
 type Row struct {
-	Items []ESItem
+	TableIndexes map[string]string
+	Items        []ESItem
 }
 
-func (r *Row) Read() error {
-	row := dbx.NullStringMap{}
+func (r *Row) Init() (err error) {
+	if r.TableIndexes == nil {
+		r.TableIndexes = make(map[string]string, 0)
+	}
 	tables := make([]string, 0)
-	db.NewQuery("SHOW TABLES").Column(&tables)
 	dbOptions := cfg.DBOptions
-	pkName := dbOptions.DefaultPk
-	pkValue := ""
-	fmt.Println(pkValue)
+	db.NewQuery("SHOW TABLES").Column(&tables)
 	for _, table := range tables {
-		if In(table, dbOptions.IgnoreTables) {
-			continue
-		}
-		indexName := table
-		for k, v := range dbOptions.MergeTables {
-			if In(table, v) {
-				indexName = k
-				break
+		if !In(table, dbOptions.IgnoreTables) {
+			// 检测 ES index 是否存在
+			indexName := table
+			for k, v := range dbOptions.MergeTables {
+				if In(table, v) {
+					indexName = k
+					break
+				}
+			}
+			r.TableIndexes[table] = indexName
+			exists := false
+			exists, err = esClient.IndexExists(indexName).Do(ctx)
+			if err != nil {
+				log.Panicln(err)
+			} else if !exists {
+				log.Println(fmt.Sprintf("Create ES `%s` index", indexName))
+				esClient.CreateIndex(indexName).Do(ctx)
 			}
 		}
+	}
+
+	return err
+}
+
+func (r *Row) Read() (err error) {
+	dbOptions := cfg.DBOptions
+	for table, indexName := range r.TableIndexes {
+		row := dbx.NullStringMap{}
+		pkName := ""
+		pkValue := ""
 		ignoreFields := make([]string, 0)
 		datetimeFormatFields := dbOptions.DatetimeFormatFields
 		for k, v := range dbOptions.Tables {
@@ -61,14 +99,14 @@ func (r *Row) Read() error {
 			pkName = dbOptions.DefaultPk
 		}
 		sq := db.Select().From(table).Limit(cfg.SizePerTime)
-		rows, err := sq.Rows()
+		var rows *dbx.Rows
+		rows, err = sq.Rows()
 		if err == nil {
 			for rows.Next() {
 				rows.ScanMap(row)
 				item := ESItem{
 					IndexName: indexName,
 					IdName:    pkName,
-					IdValue:   pkValue,
 				}
 				values := make(map[string]interface{})
 				for fieldName, v := range row {
@@ -79,6 +117,7 @@ func (r *Row) Read() error {
 					if fieldName == pkName {
 						pkValue = v.String
 					}
+					item.IdValue = pkValue
 					if In(fieldName, datetimeFormatFields) {
 						fieldName += "_formatted"
 						v, _ := strconv.ParseInt(fieldValue.(string), 10, 64)
@@ -92,14 +131,41 @@ func (r *Row) Read() error {
 		}
 	}
 
-	return nil
+	return
 }
 
-func (r *Row) Write() error {
-	fmt.Println("Write...")
-	for _, v := range r.Items {
-		fmt.Println(v.IndexName)
+func (r *Row) Write() (insertCount, updateCount, deleteCount int, err error) {
+	var e error
+	for _, item := range r.Items {
+		q, err := esClient.Search(item.IndexName).Query(elastic.NewTermQuery(item.IdName, item.IdValue)).Do(ctx)
+		if err == nil {
+			if q.TotalHits() == 0 {
+				put, err := esClient.Index().
+					Index(item.IndexName).
+					Id(item.IdValue).
+					BodyJson(item.Values).
+					Do(ctx)
+				if err != nil {
+					log.Printf("IndexName: %s, IdName: %s, IdValue: %s, err: %v", item.IndexName, item.IdName, item.IdValue, err)
+				}
+				insertCount++
+				log.Printf("Indexed `%s` to `%s` index, type `%s`\n", put.Id, put.Index, put.Type)
+			} else {
+				put, err := esClient.Update().
+					Index(item.IndexName).
+					Id(item.IdValue).
+					Doc(item.Values).
+					Do(ctx)
+				if err != nil {
+					log.Panicf("IndexName: %s, IdName: %s, IdValue: %s, err: %v", item.IndexName, item.IdName, item.IdValue, err)
+				}
+				updateCount++
+				log.Printf("Update `%s` to `%s` index, type `%s`\n", put.Id, put.Index, put.Type)
+			}
+		} else {
+			e = err
+		}
 	}
 
-	return nil
+	return insertCount, updateCount, deleteCount, e
 }

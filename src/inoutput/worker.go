@@ -1,10 +1,12 @@
 package inoutput
 
 type Worker interface {
+	// Init
+	Init() (err error)
 	// Read data from MySQL database
-	Read() error
+	Read() (err error)
 	// Write data to ElasticSearch
-	Write() error
+	Write() (insertCount, updateCount, deleteCount int, err error)
 }
 
 type ESItem struct {
