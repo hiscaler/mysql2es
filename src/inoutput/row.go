@@ -23,12 +23,10 @@ func init() {
 }
 
 type Row struct {
-	Items []map[string]interface{}
+	Items []ESItem
 }
 
-func (r Row) Read() ([]map[string]interface{}, error) {
-	items := make([]map[string]interface{}, 0)
-	fmt.Println("Begin sync")
+func (r *Row) Read() error {
 	row := dbx.NullStringMap{}
 	tables := make([]string, 0)
 	db.NewQuery("SHOW TABLES").Column(&tables)
@@ -39,6 +37,13 @@ func (r Row) Read() ([]map[string]interface{}, error) {
 	for _, table := range tables {
 		if In(table, dbOptions.IgnoreTables) {
 			continue
+		}
+		indexName := table
+		for k, v := range dbOptions.MergeTables {
+			if In(table, v) {
+				indexName = k
+				break
+			}
 		}
 		ignoreFields := make([]string, 0)
 		datetimeFormatFields := dbOptions.DatetimeFormatFields
@@ -55,14 +60,17 @@ func (r Row) Read() ([]map[string]interface{}, error) {
 		if len(pkName) == 0 {
 			pkName = dbOptions.DefaultPk
 		}
-		fmt.Println("Table: " + table)
 		sq := db.Select().From(table).Limit(cfg.SizePerTime)
 		rows, err := sq.Rows()
 		if err == nil {
-
 			for rows.Next() {
 				rows.ScanMap(row)
-				item := make(map[string]interface{})
+				item := ESItem{
+					IndexName: indexName,
+					IdName:    pkName,
+					IdValue:   pkValue,
+				}
+				values := make(map[string]interface{})
 				for fieldName, v := range row {
 					if In(fieldName, ignoreFields) {
 						continue
@@ -76,23 +84,21 @@ func (r Row) Read() ([]map[string]interface{}, error) {
 						v, _ := strconv.ParseInt(fieldValue.(string), 10, 64)
 						fieldValue = time.Unix(v, 0)
 					}
-					item[fieldName] = fieldValue
+					values[fieldName] = fieldValue
 				}
-				if cfg.Debug {
-					fmt.Println(fmt.Sprintf("#%v", item))
-				}
-				items = append(items, item)
+				item.Values = values
+				r.Items = append(r.Items, item)
 			}
 		}
 	}
 
-	r.Items = items
-	return items, nil
+	return nil
 }
 
-func (r Row) Write() error {
+func (r *Row) Write() error {
+	fmt.Println("Write...")
 	for _, v := range r.Items {
-		fmt.Println(v)
+		fmt.Println(v.IndexName)
 	}
 
 	return nil

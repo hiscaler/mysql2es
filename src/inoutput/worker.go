@@ -2,9 +2,16 @@ package inoutput
 
 type Worker interface {
 	// Read data from MySQL database
-	Read() ([]map[string]interface{}, error)
+	Read() error
 	// Write data to ElasticSearch
 	Write() error
+}
+
+type ESItem struct {
+	IndexName string
+	IdName    string
+	IdValue   string
+	Values    map[string]interface{}
 }
 
 func In(value string, items []string) bool {
