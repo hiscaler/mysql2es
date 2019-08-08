@@ -15,6 +15,14 @@ type Config struct {
 		Username     string
 		Password     string
 	}
+	ES struct {
+		Urls     []string
+		BaseAuth struct {
+			Username string
+			Password string
+		}
+	}
+	SizePerTime int64
 }
 
 func NewConfig() *Config {

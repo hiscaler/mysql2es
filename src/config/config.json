@@ -6,5 +6,15 @@
     "databaseName": "database-name",
     "username": "root",
     "password": "root"
-  }
+  },
+  "es": {
+    "urls": [
+      "http://127.0.0.1:9200"
+    ],
+    "baseAuth": {
+      "username": "",
+      "password": ""
+    }
+  },
+  "sizePerTime": 11
 }

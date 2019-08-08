@@ -27,7 +27,15 @@ func init() {
 		log.Panicln("Open database error: " + err.Error())
 	}
 
-	esClient, err = elastic.NewClient()
+	var options []elastic.ClientOptionFunc
+	if len(cfg.ES.Urls) > 0 {
+		options = append(options, elastic.SetURL(cfg.ES.Urls...))
+	}
+	if len(cfg.ES.BaseAuth.Username) > 0 && len(cfg.ES.BaseAuth.Password) > 0 {
+		options = append(options, elastic.SetBasicAuth(cfg.ES.BaseAuth.Username, cfg.ES.BaseAuth.Password))
+	}
+	fmt.Println(fmt.Sprintf("%#v", options))
+	esClient, err = elastic.NewClient(options...)
 	if err != nil {
 		log.Panicln(err)
 	}
