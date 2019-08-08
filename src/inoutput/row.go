@@ -52,8 +52,12 @@ func (r *Row) Init() (err error) {
 	tables := make([]string, 0)
 	dbOptions := cfg.DBOptions
 	db.NewQuery("SHOW TABLES").Column(&tables)
+	syncAllTables := false
+	if len(dbOptions.SyncTables) == 1 && dbOptions.SyncTables[0] == "*" {
+		syncAllTables = true
+	}
 	for _, table := range tables {
-		if !In(table, dbOptions.IgnoreTables) {
+		if (syncAllTables && !In(table, dbOptions.IgnoreTables)) || In(table, dbOptions.SyncTables) {
 			// 检测 ES index 是否存在
 			indexName := table
 			for k, v := range dbOptions.MergeTables {
@@ -62,6 +66,7 @@ func (r *Row) Init() (err error) {
 					break
 				}
 			}
+			indexName = cfg.ES.IndexPrefix + indexName
 			r.TableIndexes[table] = indexName
 			exists := false
 			exists, err = esClient.IndexExists(indexName).Do(ctx)

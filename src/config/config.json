@@ -8,6 +8,10 @@
     "password": "root"
   },
   "dbOptions": {
+    "syncTables": [
+      "*"
+    ],
+    "ignoreTables": [],
     "mergeTables": {
       "www_merge_all": [
         "www_merge_1",
@@ -19,7 +23,6 @@
       "created_at",
       "updated_at"
     ],
-    "ignoreTables": [],
     "tables": {
       "www_category": {
         "datetimeFormatFields": [
@@ -30,6 +33,7 @@
     }
   },
   "es": {
+    "indexPrefix": "",
     "urls": [
       "http://127.0.0.1:9200"
     ],

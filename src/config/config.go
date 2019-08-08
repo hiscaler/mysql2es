@@ -16,10 +16,11 @@ type Config struct {
 		Password     string
 	}
 	DBOptions struct {
+		SyncTables           []string
+		IgnoreTables         []string
 		MergeTables          map[string][]string
 		DefaultPk            string
 		DatetimeFormatFields []string
-		IgnoreTables         []string
 		Tables               map[string]struct {
 			PK                   string
 			DatetimeFormatFields []string
@@ -27,8 +28,9 @@ type Config struct {
 		}
 	}
 	ES struct {
-		Urls     []string
-		BaseAuth struct {
+		IndexPrefix string
+		Urls        []string
+		BaseAuth    struct {
 			Username string
 			Password string
 		}
