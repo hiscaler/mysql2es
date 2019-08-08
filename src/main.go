@@ -8,10 +8,9 @@ import (
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/olivere/elastic"
 	"log"
+	"strconv"
 	"time"
 )
-
-const Default_PK_NAME = "id"
 
 var cfg *config.Config
 var db *dbx.DB
@@ -43,6 +42,17 @@ func init() {
 	ctx = context.Background()
 }
 
+func In(value string, items []string) bool {
+	exists := false
+	for _, v := range items {
+		if value == v {
+			exists = true
+			break
+		}
+	}
+	return exists
+}
+
 func main() {
 	insertRecords := 0
 	updateRecords := 0
@@ -52,9 +62,36 @@ func main() {
 	row := dbx.NullStringMap{}
 	tables := make([]string, 0)
 	db.NewQuery("SHOW TABLES").Column(&tables)
-	pkName := Default_PK_NAME
+	dbOptions := cfg.DBOptions
+	pkName := dbOptions.DefaultPk
 	pkValue := ""
 	for _, table := range tables {
+		ignore := false
+		for _, v := range dbOptions.IgnoreTables {
+			if table == v {
+				ignore = true
+				break
+			}
+		}
+		if ignore {
+			continue
+		}
+		ignoreFields := make([]string, 0)
+		datetimeFormatFields := dbOptions.DatetimeFormatFields
+		for k, v := range dbOptions.Tables {
+			if k == table {
+				if len(v.PK) == 0 {
+					pkName = dbOptions.DefaultPk
+				}
+				ignoreFields = v.IgnoreFields
+				datetimeFormatFields = append(datetimeFormatFields, v.DatetimeFormatFields...)
+				break
+			}
+		}
+		if len(pkName) == 0 {
+			pkName = dbOptions.DefaultPk
+		}
+
 		// 检测 ES index 是否存在
 		exists, err := esClient.IndexExists(table).Do(ctx)
 		if err != nil {
@@ -65,7 +102,7 @@ func main() {
 		}
 
 		fmt.Println("Table: " + table)
-		sq := db.Select().From(table).Limit(10)
+		sq := db.Select().From(table).Limit(cfg.SizePerTime)
 		rows, err := sq.Rows()
 		if err == nil {
 			indexService := esClient.Index().Index(table)
@@ -73,9 +110,18 @@ func main() {
 				rows.ScanMap(row)
 				item := make(map[string]interface{})
 				for fieldName, v := range row {
+					if In(fieldName, ignoreFields) {
+						continue
+					}
+
 					fieldValue, _ := v.Value()
 					if fieldName == pkName {
 						pkValue = v.String
+					}
+					if In(fieldName, datetimeFormatFields) {
+						fieldName += "_formatted"
+						v, _ := strconv.ParseInt(fieldValue.(string), 10, 64)
+						fieldValue = time.Unix(v, 0)
 					}
 					item[fieldName] = fieldValue
 				}

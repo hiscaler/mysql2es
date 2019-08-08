@@ -15,6 +15,16 @@ type Config struct {
 		Username     string
 		Password     string
 	}
+	DBOptions struct {
+		DefaultPk            string
+		DatetimeFormatFields []string
+		IgnoreTables         []string
+		Tables               map[string]struct {
+			PK                   string
+			DatetimeFormatFields []string
+			IgnoreFields         []string
+		}
+	}
 	ES struct {
 		Urls     []string
 		BaseAuth struct {

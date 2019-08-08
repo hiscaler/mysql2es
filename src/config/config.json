@@ -7,6 +7,22 @@
     "username": "root",
     "password": "root"
   },
+  "dbOptions": {
+    "defaultPk": "id",
+    "datetimeFormatFields": [
+      "created_at",
+      "updated_at"
+    ],
+    "ignoreTables": [],
+    "tables": {
+      "www_category": {
+        "datetimeFormatFields": [
+          "created_at",
+          "updated_at"
+        ]
+      }
+    }
+  },
   "es": {
     "urls": [
       "http://127.0.0.1:9200"
@@ -16,5 +32,5 @@
       "password": ""
     }
   },
-  "sizePerTime": 11
+  "sizePerTime": 100
 }
