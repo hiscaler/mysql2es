@@ -8,6 +8,12 @@
     "password": "root"
   },
   "dbOptions": {
+    "mergeTables": {
+      "www_merge_all": [
+        "www_merge_1",
+        "www_merge_2"
+      ]
+    },
     "defaultPk": "id",
     "datetimeFormatFields": [
       "created_at",

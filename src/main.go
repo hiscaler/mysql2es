@@ -66,15 +66,15 @@ func main() {
 	pkName := dbOptions.DefaultPk
 	pkValue := ""
 	for _, table := range tables {
-		ignore := false
-		for _, v := range dbOptions.IgnoreTables {
-			if table == v {
-				ignore = true
+		if In(table, dbOptions.IgnoreTables) {
+			continue
+		}
+		indexName := table
+		for k, v := range dbOptions.MergeTables {
+			if In(table, v) {
+				indexName = k
 				break
 			}
-		}
-		if ignore {
-			continue
 		}
 		ignoreFields := make([]string, 0)
 		datetimeFormatFields := dbOptions.DatetimeFormatFields
@@ -93,19 +93,19 @@ func main() {
 		}
 
 		// 检测 ES index 是否存在
-		exists, err := esClient.IndexExists(table).Do(ctx)
+		exists, err := esClient.IndexExists(indexName).Do(ctx)
 		if err != nil {
 			panic(err)
 		} else if !exists {
-			fmt.Println(fmt.Sprintf("Create ES `%s` index", table))
-			esClient.CreateIndex(table).Do(ctx)
+			fmt.Println(fmt.Sprintf("Create ES `%s` index", indexName))
+			esClient.CreateIndex(indexName).Do(ctx)
 		}
 
 		fmt.Println("Table: " + table)
 		sq := db.Select().From(table).Limit(cfg.SizePerTime)
 		rows, err := sq.Rows()
 		if err == nil {
-			indexService := esClient.Index().Index(table)
+			indexService := esClient.Index().Index(indexName)
 			for rows.Next() {
 				rows.ScanMap(row)
 				item := make(map[string]interface{})
@@ -125,8 +125,10 @@ func main() {
 					}
 					item[fieldName] = fieldValue
 				}
-				fmt.Println(fmt.Sprintf("#%v", item))
-				q, err := esClient.Search(table).Query(elastic.NewTermQuery(pkName, pkValue)).Do(ctx)
+				if cfg.Debug {
+					fmt.Println(fmt.Sprintf("#%v", item))
+				}
+				q, err := esClient.Search(indexName).Query(elastic.NewTermQuery(pkName, pkValue)).Do(ctx)
 				if err == nil {
 					if q.TotalHits() == 0 {
 						put, err := indexService.
@@ -140,7 +142,7 @@ func main() {
 						log.Printf("Indexed trace %s to index %s, type %s\n", put.Id, put.Index, put.Type)
 					} else {
 						put, err := esClient.Update().
-							Index(table).
+							Index(indexName).
 							Id(pkValue).
 							Doc(item).
 							Do(ctx)

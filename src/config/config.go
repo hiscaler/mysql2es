@@ -16,6 +16,7 @@ type Config struct {
 		Password     string
 	}
 	DBOptions struct {
+		MergeTables          map[string][]string
 		DefaultPk            string
 		DatetimeFormatFields []string
 		IgnoreTables         []string
