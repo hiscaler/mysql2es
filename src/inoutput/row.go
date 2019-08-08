@@ -123,12 +123,11 @@ func (r *Row) Read() (err error) {
 						pkValue = v.String
 					}
 					item.IdValue = pkValue
-					if In(fieldName, datetimeFormatFields) {
-						fieldName += "_formatted"
-						v, _ := strconv.ParseInt(fieldValue.(string), 10, 64)
-						fieldValue = time.Unix(v, 0)
-					}
 					values[fieldName] = fieldValue
+					if In(fieldName, datetimeFormatFields) {
+						v, _ := strconv.ParseInt(fieldValue.(string), 10, 64)
+						values[fieldName+"_formatted"] = time.Unix(v, 0)
+					}
 				}
 				item.Values = values
 				r.Items = append(r.Items, item)
