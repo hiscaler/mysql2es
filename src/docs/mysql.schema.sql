@@ -6,7 +6,8 @@ CREATE TABLE `m2e_log` (
 	`pk_int_value` INT(11) NOT NULL DEFAULT '0',
 	`last_modify` INT(11) NOT NULL,
 	`version` VARCHAR(50) NOT NULL,
-	PRIMARY KEY (`id`)
+	PRIMARY KEY (`id`),
+	INDEX `table_name_pk_name_pk_int_value` (`table_name`, `pk_name`, `pk_int_value`)
 )
 COLLATE='latin1_swedish_ci'
 ENGINE=InnoDB
