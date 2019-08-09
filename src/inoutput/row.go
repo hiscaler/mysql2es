@@ -163,12 +163,21 @@ func (r *Row) Write() (insertCount, updateCount, deleteCount int, err error) {
 	indexService := esClient.Index()
 	updateService := esClient.Update()
 	for _, item := range r.Items {
-		//checkHealth:
-		//	if clusterHealthResponse, err := esClient.ClusterHealth().Index(item.IndexName).Do(ctx); err != nil {
-		//		fmt.Println(fmt.Sprintf("#%v", clusterHealthResponse))
-		//		time.Sleep(10 * time.Second)
-		//		goto checkHealth
-		//	}
+		for {
+			if tasks, err := esClient.TasksList().Do(ctx); err == nil {
+				tasksCount := 0
+				for _, node := range tasks.Nodes {
+					tasksCount += len(node.Tasks)
+				}
+				if tasksCount <= 500 {
+					break
+				} else {
+					time.Sleep(3 * time.Second)
+				}
+			} else {
+				time.Sleep(2 * time.Second)
+			}
+		}
 		wg.Add(1)
 		go func(wg *sync.WaitGroup, item ESItem) {
 			maxTimes := 3
