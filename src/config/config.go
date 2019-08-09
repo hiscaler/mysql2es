@@ -20,11 +20,14 @@ type Config struct {
 		IgnoreTables         []string
 		MergeTables          map[string][]string
 		DefaultPk            string
+		DefaultPkType        string
 		DatetimeFormatFields []string
 		Tables               map[string]struct {
 			PK                   string
+			PkType               string
 			DatetimeFormatFields []string
 			IgnoreFields         []string
+			VersionFields        []string
 		}
 	}
 	ES struct {
