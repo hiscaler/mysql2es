@@ -117,10 +117,10 @@ func (eLog *M2ELog) Save() (isNewRecord, success bool, err error) {
 		"version":         version,
 		"last_modify":     time.Now().Unix(),
 	}
-	if eLog.Id == 0 {
+	var n int
+	db.Select("COUNT(*)").From(TableName).Where(dbx.HashExp{"table_name": eLog.TableName, "pk_name": eLog.PkName, "pk_int_value": eLog.PkIntValue}).Row(&n)
+	if n == 0 {
 		isNewRecord = true
-	} else {
-		isNewRecord = false
 	}
 	if isNewRecord {
 		// Insert
