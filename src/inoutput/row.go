@@ -7,7 +7,9 @@ import (
 	"github.com/go-ozzo/ozzo-dbx"
 	"github.com/olivere/elastic"
 	"log"
+	"math/rand"
 	"strconv"
+	"sync"
 	"time"
 )
 
@@ -26,6 +28,7 @@ func init() {
 	}
 
 	var options []elastic.ClientOptionFunc
+	options = append(options, elastic.SetSniff(false))
 	if len(cfg.ES.Urls) > 0 {
 		options = append(options, elastic.SetURL(cfg.ES.Urls...))
 	}
@@ -38,6 +41,7 @@ func init() {
 	}
 
 	ctx = context.Background()
+	rand.Seed(time.Now().Unix())
 }
 
 type Row struct {
@@ -103,11 +107,20 @@ func (r *Row) Read() (err error) {
 		if len(pkName) == 0 {
 			pkName = dbOptions.DefaultPk
 		}
+		lastId := ""
+
+	queryDatabase:
 		sq := db.Select().From(table).Limit(cfg.SizePerTime)
+		if len(lastId) > 0 {
+			fmt.Println("LastId: ", lastId)
+			sq.Where(dbx.NewExp(fmt.Sprintf("%s > %s", pkName, lastId)))
+		}
 		var rows *dbx.Rows
 		rows, err = sq.Rows()
 		if err == nil {
+			i := 0
 			for rows.Next() {
+				i++
 				rows.ScanMap(row)
 				item := ESItem{
 					IndexName: indexName,
@@ -130,8 +143,14 @@ func (r *Row) Read() (err error) {
 					}
 				}
 				item.Values = values
+				lastId = item.IdValue
 				r.Items = append(r.Items, item)
 			}
+			if i > 0 {
+				goto queryDatabase
+			}
+		} else {
+			log.Panicln(err)
 		}
 	}
 
@@ -140,36 +159,64 @@ func (r *Row) Read() (err error) {
 
 func (r *Row) Write() (insertCount, updateCount, deleteCount int, err error) {
 	var e error
+	var wg sync.WaitGroup
+	indexService := esClient.Index()
+	updateService := esClient.Update()
 	for _, item := range r.Items {
-		q, err := esClient.Search(item.IndexName).Query(elastic.NewTermQuery(item.IdName, item.IdValue)).Do(ctx)
-		if err == nil {
-			if q.TotalHits() == 0 {
-				put, err := esClient.Index().
-					Index(item.IndexName).
-					Id(item.IdValue).
-					BodyJson(item.Values).
-					Do(ctx)
-				if err != nil {
-					log.Printf("IndexName: %s, IdName: %s, IdValue: %s, err: %v", item.IndexName, item.IdName, item.IdValue, err)
+		//checkHealth:
+		//	if clusterHealthResponse, err := esClient.ClusterHealth().Index(item.IndexName).Do(ctx); err != nil {
+		//		fmt.Println(fmt.Sprintf("#%v", clusterHealthResponse))
+		//		time.Sleep(10 * time.Second)
+		//		goto checkHealth
+		//	}
+		wg.Add(1)
+		go func(wg *sync.WaitGroup, item ESItem) {
+			maxTimes := 3
+			times := 0
+			for times < maxTimes {
+				if times > 0 {
+					time.Sleep(time.Duration(times+rand.Intn(times)) * time.Second)
 				}
-				insertCount++
-				log.Printf("Indexed `%s` to `%s` index, type `%s`\n", put.Id, put.Index, put.Type)
-			} else {
-				put, err := esClient.Update().
-					Index(item.IndexName).
-					Id(item.IdValue).
-					Doc(item.Values).
-					Do(ctx)
-				if err != nil {
-					log.Panicf("IndexName: %s, IdName: %s, IdValue: %s, err: %v", item.IndexName, item.IdName, item.IdValue, err)
+				q, err := esClient.Search(item.IndexName).Query(elastic.NewTermQuery(item.IdName, item.IdValue)).Do(ctx)
+				if err == nil {
+					if q.TotalHits() == 0 {
+						put, err := indexService.
+							Index(item.IndexName).
+							Id(item.IdValue).
+							BodyJson(item.Values).
+							Do(ctx)
+						if err == nil {
+							insertCount++
+							log.Printf("Indexed `%s` to `%s` index, type `%s`\n", put.Id, put.Index, put.Type)
+							times = maxTimes
+						} else {
+							log.Printf("IndexName: %s, IdName: %s, IdValue: %s, err: %v", item.IndexName, item.IdName, item.IdValue, err)
+						}
+					} else {
+						put, err := updateService.
+							Index(item.IndexName).
+							Id(item.IdValue).
+							Doc(item.Values).
+							Do(ctx)
+						if err == nil {
+							updateCount++
+							log.Printf("Update `%s` to `%s` index, type `%s`\n", put.Id, put.Index, put.Type)
+							times = maxTimes
+						} else {
+							fmt.Println(fmt.Sprintf("%#v", item.Values))
+							log.Printf("IndexName: %s, IdName: %s, IdValue: %s, err: %v", item.IndexName, item.IdName, item.IdValue, err)
+						}
+					}
+				} else {
+					e = err
 				}
-				updateCount++
-				log.Printf("Update `%s` to `%s` index, type `%s`\n", put.Id, put.Index, put.Type)
+				times++
 			}
-		} else {
-			e = err
-		}
+
+			wg.Done()
+		}(&wg, item)
 	}
+	wg.Wait()
 
 	return insertCount, updateCount, deleteCount, e
 }
