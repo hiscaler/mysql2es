@@ -7,6 +7,7 @@ import (
 	"github.com/go-ozzo/ozzo-dbx"
 	"github.com/olivere/elastic"
 	"log"
+	"m2elog"
 	"math/rand"
 	"strconv"
 	"sync"
@@ -92,12 +93,16 @@ func (r *Row) Read() (err error) {
 		row := dbx.NullStringMap{}
 		pkName := ""
 		pkValue := ""
+		pkType := dbOptions.DefaultPkType
 		ignoreFields := make([]string, 0)
 		datetimeFormatFields := dbOptions.DatetimeFormatFields
 		for k, v := range dbOptions.Tables {
 			if k == table {
-				if len(v.PK) == 0 {
-					pkName = dbOptions.DefaultPk
+				if len(v.PK) > 0 {
+					pkName = v.PK
+				}
+				if len(v.PkType) > 0 {
+					pkType = v.PkType
 				}
 				ignoreFields = v.IgnoreFields
 				datetimeFormatFields = append(datetimeFormatFields, v.DatetimeFormatFields...)
@@ -108,6 +113,9 @@ func (r *Row) Read() (err error) {
 			pkName = dbOptions.DefaultPk
 		}
 		lastId := ""
+		if pkType == m2elog.PKIntType {
+			db.Select("MAX(pk_int_value)").From(m2elog.TableName).Where(dbx.HashExp{"table_name": table}).Row(&lastId)
+		}
 
 	queryDatabase:
 		sq := db.Select().From(table).Limit(cfg.SizePerTime)
@@ -123,6 +131,7 @@ func (r *Row) Read() (err error) {
 				i++
 				rows.ScanMap(row)
 				item := ESItem{
+					TableName: table,
 					IndexName: indexName,
 					IdName:    pkName,
 				}
@@ -188,6 +197,12 @@ func (r *Row) Write() (insertCount, updateCount, deleteCount int, err error) {
 				}
 				q, err := esClient.Search(item.IndexName).Query(elastic.NewTermQuery(item.IdName, item.IdValue)).Do(ctx)
 				if err == nil {
+					intValue, _ := strconv.ParseInt(item.IdValue, 10, 64)
+					eLog := m2elog.M2ELog{
+						TableName:  item.TableName,
+						PkName:     item.IdName,
+						PkIntValue: intValue,
+					}
 					if q.TotalHits() == 0 {
 						put, err := indexService.
 							Index(item.IndexName).
@@ -195,6 +210,7 @@ func (r *Row) Write() (insertCount, updateCount, deleteCount int, err error) {
 							BodyJson(item.Values).
 							Do(ctx)
 						if err == nil {
+							eLog.Save()
 							insertCount++
 							log.Printf("Indexed `%s` to `%s` index, type `%s`\n", put.Id, put.Index, put.Type)
 							times = maxTimes
@@ -208,6 +224,7 @@ func (r *Row) Write() (insertCount, updateCount, deleteCount int, err error) {
 							Doc(item.Values).
 							Do(ctx)
 						if err == nil {
+							eLog.Save()
 							updateCount++
 							log.Printf("Update `%s` to `%s` index, type `%s`\n", put.Id, put.Index, put.Type)
 							times = maxTimes

@@ -97,7 +97,6 @@ func (eLog *M2ELog) Save() (isNewRecord, success bool, err error) {
 			version = strings.Join(versions, ",")
 		}
 	}
-	fmt.Println("Version: ", version)
 	var intValue int64
 	var strValue string
 	typ := eLog.PkType()
@@ -157,7 +156,6 @@ func (eLog *M2ELog) Status() (changed, deleted bool) {
 	if row == nil {
 		deleted = true
 	} else {
-		log.Println(fmt.Sprintf("%#v", row))
 		versions := make(map[string]string)
 		for _, v := range strings.Split(eLog.Version, ",") {
 			if strings.Contains(v, ":") {

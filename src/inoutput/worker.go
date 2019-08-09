@@ -10,6 +10,7 @@ type Worker interface {
 }
 
 type ESItem struct {
+	TableName string
 	IndexName string
 	IdName    string
 	IdValue   string
