@@ -3,6 +3,7 @@ package inoutput
 import (
 	"config"
 	"context"
+	"database/sql"
 	"fmt"
 	"github.com/go-ozzo/ozzo-dbx"
 	"github.com/olivere/elastic"
@@ -10,6 +11,7 @@ import (
 	"m2elog"
 	"math/rand"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 )
@@ -18,6 +20,14 @@ var cfg *config.Config
 var db *dbx.DB
 var esClient *elastic.Client
 var ctx context.Context
+
+const (
+	IntFieldType      = "int"
+	StringFieldType   = "string"
+	DateFieldType     = "date"
+	TimeFieldType     = "time"
+	DatetimeFieldType = "datetime"
+)
 
 func init() {
 	cfg = config.NewConfig()
@@ -92,7 +102,7 @@ func (r *Row) Read() (err error) {
 	for table, indexName := range r.TableIndexes {
 		row := dbx.NullStringMap{}
 		pkName := ""
-		pkValue := ""
+		var pkValue interface{}
 		pkType := dbOptions.DefaultPkType
 		ignoreFields := make([]string, 0)
 		datetimeFormatFields := dbOptions.DatetimeFormatFields
@@ -115,6 +125,38 @@ func (r *Row) Read() (err error) {
 		lastId := ""
 		if pkType == m2elog.PKIntType {
 			db.Select("MAX(pk_int_value)").From(m2elog.TableName).Where(dbx.HashExp{"table_name": table}).Row(&lastId)
+		}
+		type ColumnType struct {
+			Field sql.NullString `db:"Field"`
+			Type  sql.NullString `db:"Type"`
+		}
+		tmp := make([]ColumnType, 0)
+		db.NewQuery("SHOW COLUMNS FROM " + table).All(&tmp)
+		tableColumnTypes := make(map[string]string, 0)
+		for _, t := range tmp {
+			if t.Field.Valid {
+				fType := StringFieldType
+				if t.Type.Valid {
+					fName := t.Type.String
+					index := strings.Index(fName, "(")
+					if index != -1 {
+						fName = fName[:index]
+					}
+					switch fName {
+					case "int", "smallint", "tinyint":
+						fType = IntFieldType
+					case "date":
+						fType = DateFieldType
+					case "time":
+						fType = TimeFieldType
+					case "datetime":
+						fType = DatetimeFieldType
+					default:
+						fType = StringFieldType
+					}
+				}
+				tableColumnTypes[t.Field.String] = fType
+			}
 		}
 
 	queryDatabase:
@@ -144,12 +186,22 @@ func (r *Row) Read() (err error) {
 					if fieldName == pkName {
 						pkValue = v.String
 					}
-					item.IdValue = pkValue
-					values[fieldName] = fieldValue
+					item.IdValue = fmt.Sprintf("%s", pkValue)
 					if In(fieldName, datetimeFormatFields) {
 						v, _ := strconv.ParseInt(fieldValue.(string), 10, 64)
 						values[fieldName+"_formatted"] = time.Unix(v, 0)
 					}
+					if fieldValue != nil {
+						switch tableColumnTypes[fieldName] {
+						case IntFieldType:
+							fieldValue, _ = strconv.ParseInt(fieldValue.(string), 10, 64)
+						default:
+							fieldValue = fmt.Sprintf("%s", fieldValue)
+						}
+					} else {
+						fieldValue = ""
+					}
+					values[fieldName] = fieldValue
 				}
 				item.Values = values
 				lastId = item.IdValue
