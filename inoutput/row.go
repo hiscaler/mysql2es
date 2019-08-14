@@ -1,14 +1,15 @@
 package inoutput
 
 import (
-	"config"
 	"context"
 	"database/sql"
 	"fmt"
 	"github.com/go-ozzo/ozzo-dbx"
-	"github.com/olivere/elastic"
+	_ "github.com/go-sql-driver/mysql"
+	"github.com/hiscaler/mysql2es/config"
+	"github.com/hiscaler/mysql2es/m2elog"
+	"github.com/olivere/elastic/v7"
 	"log"
-	"m2elog"
 	"math/rand"
 	"strconv"
 	"strings"

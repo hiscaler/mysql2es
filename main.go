@@ -3,7 +3,7 @@ package main
 import (
 	"fmt"
 	_ "github.com/go-sql-driver/mysql"
-	"inoutput"
+	"github.com/hiscaler/mysql2es/inoutput"
 	"log"
 	"math"
 	"time"

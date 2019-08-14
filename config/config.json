@@ -3,22 +3,31 @@
   "db": {
     "host": "127.0.0.1",
     "port": "3306",
-    "databaseName": "database-name",
+    "databaseName": "tjtjliuxuecentrecom",
     "username": "root",
     "password": "root"
   },
   "dbOptions": {
     "syncTables": [
-      "*"
+      "www_member",
+      "www_webchat_copy_1",
+      "www_webchat_copy_2",
+      "www_webchat_copy_3",
+      "www_webchat_copy_4",
+      "www_webchat_copy_5"
     ],
     "ignoreTables": [],
     "mergeTables": {
-      "www_merge_all": [
-        "www_merge_1",
-        "www_merge_2"
+      "www_webchat_copy": [
+        "www_webchat_copy_1",
+        "www_webchat_copy_2",
+        "www_webchat_copy_3",
+        "www_webchat_copy_4",
+        "www_webchat_copy_5"
       ]
     },
     "defaultPk": "id",
+    "defaultPkType": "int",
     "datetimeFormatFields": [
       "created_at",
       "updated_at"
@@ -28,12 +37,20 @@
         "datetimeFormatFields": [
           "created_at",
           "updated_at"
+        ],
+        "versionFields": [
+          "created_at"
+        ]
+      },
+      "www_member": {
+        "versionFields": [
+          "created_at"
         ]
       }
     }
   },
   "es": {
-    "indexPrefix": "",
+    "indexPrefix": "tj_",
     "urls": [
       "http://127.0.0.1:9200"
     ],
@@ -42,5 +59,5 @@
       "password": ""
     }
   },
-  "sizePerTime": 100
+  "sizePerTime": 1000
 }
