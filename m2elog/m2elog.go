@@ -1,9 +1,9 @@
 package m2elog
 
 import (
-	"github.com/hiscaler/mysql2es/config"
 	"fmt"
 	"github.com/go-ozzo/ozzo-dbx"
+	"github.com/hiscaler/mysql2es/config"
 	"log"
 	"strconv"
 	"strings"

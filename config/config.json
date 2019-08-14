@@ -59,5 +59,6 @@
       "password": ""
     }
   },
-  "sizePerTime": 1000
+  "sizePerTime": 1000,
+  "maxProcessRecordsPerTable": 1000
 }

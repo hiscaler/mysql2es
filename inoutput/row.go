@@ -160,6 +160,7 @@ func (r *Row) Read() (err error) {
 			}
 		}
 
+		var totalRecords int64
 	queryDatabase:
 		sq := db.Select().From(table).Limit(cfg.SizePerTime)
 		if len(lastId) > 0 {
@@ -171,6 +172,7 @@ func (r *Row) Read() (err error) {
 		if err == nil {
 			i := 0
 			for rows.Next() {
+				totalRecords++
 				i++
 				rows.ScanMap(row)
 				item := ESItem{
@@ -208,7 +210,7 @@ func (r *Row) Read() (err error) {
 				lastId = item.IdValue
 				r.Items = append(r.Items, item)
 			}
-			if i > 0 {
+			if i > 0 && totalRecords < cfg.MaxProcessRecordsPerTable {
 				goto queryDatabase
 			}
 		} else {
@@ -265,10 +267,10 @@ func (r *Row) Write() (insertCount, updateCount, deleteCount int, err error) {
 						if err == nil {
 							eLog.Save()
 							insertCount++
-							log.Printf("Indexed `%s` to `%s` index, type `%s`\n", put.Id, put.Index, put.Type)
+							log.Printf("Table %s Indexed `%s` to `%s` index, type `%s`\n", item.TableName, put.Id, put.Index, put.Type)
 							times = maxTimes
 						} else {
-							log.Printf("IndexName: %s, IdName: %s, IdValue: %s, err: %v", item.IndexName, item.IdName, item.IdValue, err)
+							log.Printf("Table: %s, Index: %s, IdName: %s, IdValue: %s, err: %v", item.TableName, item.IndexName, item.IdName, item.IdValue, err)
 						}
 					} else {
 						put, err := updateService.
@@ -279,11 +281,11 @@ func (r *Row) Write() (insertCount, updateCount, deleteCount int, err error) {
 						if err == nil {
 							eLog.Save()
 							updateCount++
-							log.Printf("Update `%s` to `%s` index, type `%s`\n", put.Id, put.Index, put.Type)
+							log.Printf("Update [Table: %s] `%s` to `%s` index, type `%s`\n", item.TableName, put.Id, put.Index, put.Type)
 							times = maxTimes
 						} else {
 							fmt.Println(fmt.Sprintf("%#v", item.Values))
-							log.Printf("IndexName: %s, IdName: %s, IdValue: %s, err: %v", item.IndexName, item.IdName, item.IdValue, err)
+							log.Printf("Table: %s, Index: %s, IdName: %s, IdValue: %s, err: %v", item.TableName, item.IndexName, item.IdName, item.IdValue, err)
 						}
 					}
 				} else {

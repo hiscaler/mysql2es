@@ -38,7 +38,8 @@ type Config struct {
 			Password string
 		}
 	}
-	SizePerTime int64
+	SizePerTime               int64
+	MaxProcessRecordsPerTable int64
 }
 
 func NewConfig() *Config {
