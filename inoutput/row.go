@@ -243,8 +243,8 @@ func (r *Row) Write() (insertCount, updateCount, deleteCount int, err error) {
 			}
 		}
 		wg.Add(1)
-		go func(wg *sync.WaitGroup, item ESItem) {
-			maxTimes := 3
+		go func(wg *sync.WaitGroup, item ESItem, indexService elastic.IndexService, updateService elastic.UpdateService) {
+			maxTimes := 30
 			times := 0
 			for times < maxTimes {
 				if times > 0 {
@@ -295,7 +295,7 @@ func (r *Row) Write() (insertCount, updateCount, deleteCount int, err error) {
 			}
 
 			wg.Done()
-		}(&wg, item)
+		}(&wg, item, *indexService, *updateService)
 	}
 	wg.Wait()
 
