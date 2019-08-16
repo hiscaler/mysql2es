@@ -222,7 +222,7 @@ func (r *Row) Read() (err error) {
 	return
 }
 
-func (r *Row) Write() (insertCount, updateCount, deleteCount int, err error) {
+func (r *Row) Write() (insertCount, updateCount, deleteCount int64, err error) {
 	var e error
 	var wg sync.WaitGroup
 	indexService := esClient.Index()

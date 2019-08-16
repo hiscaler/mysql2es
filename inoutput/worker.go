@@ -6,7 +6,7 @@ type Worker interface {
 	// Read data from MySQL database
 	Read() (err error)
 	// Write data to ElasticSearch
-	Write() (insertCount, updateCount, deleteCount int, err error)
+	Write() (insertCount, updateCount, deleteCount int64, err error)
 }
 
 type ESItem struct {
