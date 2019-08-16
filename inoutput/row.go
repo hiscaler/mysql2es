@@ -1,8 +1,10 @@
 package inoutput
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"github.com/go-ozzo/ozzo-dbx"
 	_ "github.com/go-sql-driver/mysql"
@@ -274,19 +276,46 @@ func (r *Row) Write() (insertCount, updateCount, deleteCount int64, err error) {
 							log.Printf("Table: %s, Index: %s, IdName: %s, IdValue: %s, err: %v", item.TableName, item.IndexName, item.IdName, item.IdValue, err)
 						}
 					} else {
-						put, err := updateService.
-							Index(item.IndexName).
-							Id(item.IdValue).
-							Doc(item.Values).
-							Do(ctx)
-						if err == nil {
-							eLog.Save()
-							updateCount++
-							log.Printf("Update [Table: %s] `%s` to `%s` index, type `%s`\n", item.TableName, put.Id, put.Index, put.Type)
-							times = maxTimes
-						} else {
-							fmt.Println(fmt.Sprintf("%#v", item.Values))
-							log.Printf("Table: %s, Index: %s, IdName: %s, IdValue: %s, err: %v", item.TableName, item.IndexName, item.IdName, item.IdValue, err)
+						hasDiff := false
+						var t map[string]interface{}
+						for _, hit := range q.Hits.Hits {
+							d := json.NewDecoder(bytes.NewReader(hit.Source))
+							d.UseNumber()
+							if err := d.Decode(&t); err == nil {
+								for k, v := range t {
+									if strings.Contains(k, "_formatted") {
+										continue
+									}
+									if vv, ok := item.Values[k]; ok {
+										switch vv.(type) {
+										case int, int8, int64, int32:
+											vv = fmt.Sprintf("%d", vv)
+										}
+										v := fmt.Sprintf("%v", v)
+										if v != vv {
+											hasDiff = true
+											log.Println(fmt.Sprintf("Diff `%s`: MySql: [ %T ] %#v -> ES: [ %T ] %#v", k, vv, vv, v, v))
+											break
+										}
+									}
+								}
+							}
+						}
+						if hasDiff {
+							put, err := updateService.
+								Index(item.IndexName).
+								Id(item.IdValue).
+								Doc(item.Values).
+								Do(ctx)
+							if err == nil {
+								eLog.Save()
+								updateCount++
+								log.Printf("Update [Table: %s] `%s` to `%s` index, type `%s`\n", item.TableName, put.Id, put.Index, put.Type)
+								times = maxTimes
+							} else {
+								fmt.Println(fmt.Sprintf("%#v", item.Values))
+								log.Printf("Table: %s, Index: %s, IdName: %s, IdValue: %s, err: %v", item.TableName, item.IndexName, item.IdName, item.IdValue, err)
+							}
 						}
 					}
 				} else {
