@@ -31,7 +31,7 @@ func main() {
 			totalInsertCount += insertCount
 			totalUpdateCount += updateCount
 			totalDeleteCount += deleteCount
-			totalCount += totalInsertCount + totalUpdateCount + totalDeleteCount
+			totalCount = totalInsertCount + totalUpdateCount + totalDeleteCount
 			seconds := time.Since(beginDatetime).Seconds()
 			strLen := numberWidth(insertCount)
 			if n := numberWidth(updateCount); n > strLen {
