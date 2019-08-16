@@ -100,6 +100,7 @@ func (r *Row) Init() (err error) {
 
 func (r *Row) Read() (err error) {
 	dbOptions := cfg.DBOptions
+	r.Items = nil
 	for table, indexName := range r.TableIndexes {
 		row := dbx.NullStringMap{}
 		pkName := ""
