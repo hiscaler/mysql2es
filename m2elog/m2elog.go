@@ -79,20 +79,22 @@ func (eLog *M2ELog) PkType() (typ string) {
 }
 
 // Insert OR Update log
-func (eLog *M2ELog) Save() (isNewRecord, success bool, err error) {
+func (eLog *M2ELog) Save(row map[string]interface{}) (isNewRecord, success bool, err error) {
 	version := strings.TrimSpace(eLog.Version)
 	if len(version) == 0 {
 		versionFields := versionFields(*eLog)
-		var row dbx.NullStringMap
-		err := db.Select(versionFields...).From(eLog.TableName).Where(dbx.HashExp{eLog.PkName: eLog.PkIntValue}).One(&row)
 		if err == nil {
 			versions := make([]string, 0)
 			for k, v := range row {
-				value := ""
-				if v.Valid {
-					value = v.String
+				for _, vv := range versionFields {
+					if k == vv {
+						switch v.(type) {
+						case int, int8, int16, int32, int64:
+							v = fmt.Sprintf("%v", v)
+						}
+						versions = append(versions, fmt.Sprintf("%s:%s", k, v))
+					}
 				}
-				versions = append(versions, fmt.Sprintf("%s:%s", k, value))
 			}
 			version = strings.Join(versions, ",")
 		}

@@ -268,7 +268,7 @@ func (r *Row) Write() (insertCount, updateCount, deleteCount int64, err error) {
 							BodyJson(item.Values).
 							Do(ctx)
 						if err == nil {
-							eLog.Save()
+							eLog.Save(item.Values)
 							insertCount++
 							log.Printf("Table %s Indexed `%s` to `%s` index, type `%s`\n", item.TableName, put.Id, put.Index, put.Type)
 							times = maxTimes
@@ -308,7 +308,7 @@ func (r *Row) Write() (insertCount, updateCount, deleteCount int64, err error) {
 								Doc(item.Values).
 								Do(ctx)
 							if err == nil {
-								eLog.Save()
+								eLog.Save(item.Values)
 								updateCount++
 								log.Printf("Update [Table: %s] `%s` to `%s` index, type `%s`\n", item.TableName, put.Id, put.Index, put.Type)
 								times = maxTimes
@@ -316,6 +316,9 @@ func (r *Row) Write() (insertCount, updateCount, deleteCount int64, err error) {
 								fmt.Println(fmt.Sprintf("%#v", item.Values))
 								log.Printf("Table: %s, Index: %s, IdName: %s, IdValue: %s, err: %v", item.TableName, item.IndexName, item.IdName, item.IdValue, err)
 							}
+						} else {
+							eLog.Save(item.Values)
+							times = maxTimes
 						}
 					}
 				} else {
